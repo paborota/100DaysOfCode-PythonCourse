@@ -55,10 +55,8 @@ if __name__ == "__main__":
     yesterdays_close = float(stock_data[yesterday_key]["4. close"])
     day_before_close = float(stock_data[day_before_key]["4. close"])
 
-    print(dt.today().date())
-
-    difference = yesterdays_close - day_before_close
-    if abs(difference) >= 5:
+    difference_percentage = ((yesterdays_close - day_before_close) / day_before_close) * 100
+    if abs(difference_percentage) >= 5:
 
         news_parameters = {
             "q": COMPANY_NAME,
@@ -74,10 +72,10 @@ if __name__ == "__main__":
 
 
         change_indicator = "🔻"
-        if difference > 0:
+        if difference_percentage > 0:
             change_indicator = "🔺"
 
-        message_body = f"{STOCK}: {change_indicator}{round(abs(difference), 2)}%\n\nHeadline: {news_data[0]['title']}\n\nBrief: {news_data[0]['content']}"
+        message_body = f"{STOCK}: {change_indicator}{round(abs(difference_percentage), 2)}%\n\nHeadline: {news_data[0]['title']}\n\nBrief: {news_data[0]['content']}"
 
         client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
         message = client.messages \
