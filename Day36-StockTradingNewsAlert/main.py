@@ -24,7 +24,6 @@ COMPANY_NAME = "Tesla Inc"
 LANGUAGE = "en"
 NEWS_API_KEY = os.environ.get("NewsAPI_API_KEY")
 
-
 # ------------------ TWILIO CONSTANTS ------------------ #
 TWILIO_SID = os.environ.get("TWILIO_SID")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
@@ -45,9 +44,12 @@ if __name__ == "__main__":
     }
 
     response = requests.get(STOCK_API, params=stock_parameters)
+    print(response)
     response.raise_for_status()
     stock_data = response.json()["Time Series (Daily)"]
-    stock_data_as_list = list(stock_data)
+    stock_data_as_list = list(stock_data)[:2]
+
+    print(stock_data_as_list)
 
     yesterday_key = stock_data_as_list[0]
     day_before_key = stock_data_as_list[1]
@@ -56,11 +58,10 @@ if __name__ == "__main__":
     day_before_close = float(stock_data[day_before_key]["4. close"])
 
     difference_percentage = ((yesterdays_close - day_before_close) / day_before_close) * 100
-    if abs(difference_percentage) >= 5:
+    if abs(difference_percentage) >= 0.001:
 
         news_parameters = {
-            "q": COMPANY_NAME,
-            "from": dt.today().date(),
+            "qInTitle": COMPANY_NAME,
             "sortBy": "publishedAt",
             "language": LANGUAGE,
             "apiKey": NEWS_API_KEY
@@ -68,14 +69,17 @@ if __name__ == "__main__":
 
         news_response = requests.get(NEWS_API, params=news_parameters)
         news_response.raise_for_status()
-        news_data = news_response.json()["articles"]
+        first_three_articles = news_response.json()["articles"][:3]
 
+        formatted_article_list = [f"Headline: {article['title']}\nBrief: {article['description']}" for article in first_three_articles]
 
-        change_indicator = "🔻"
+        change_indicator = '🔻'
         if difference_percentage > 0:
-            change_indicator = "🔺"
+            change_indicator = '🔺'
 
-        message_body = f"{STOCK}: {change_indicator}{round(abs(difference_percentage), 2)}%\n\nHeadline: {news_data[0]['title']}\n\nBrief: {news_data[0]['content']}"
+        message_body = f"{STOCK}: {change_indicator}{round(abs(difference_percentage), 2)}%\n\n" \
+                       f"Headline: {first_three_articles[0]['title']}\n\n" \
+                       f"Brief: {first_three_articles[0]['content']}"
 
         client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
         message = client.messages \
