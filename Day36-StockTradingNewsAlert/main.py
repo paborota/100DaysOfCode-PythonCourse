@@ -58,7 +58,7 @@ if __name__ == "__main__":
     day_before_close = float(stock_data[day_before_key]["4. close"])
 
     difference_percentage = ((yesterdays_close - day_before_close) / day_before_close) * 100
-    if abs(difference_percentage) >= 0.001:
+    if abs(difference_percentage) >= 5:
 
         news_parameters = {
             "qInTitle": COMPANY_NAME,
