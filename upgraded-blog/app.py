@@ -18,6 +18,10 @@ def contact():
 def post(post_id):
     global data
     global imgs
+
+    if post_id == 0:
+        return render_template("sample-post.html")
+
     i = 0
     for post in data:
         if post['id'] == post_id:
