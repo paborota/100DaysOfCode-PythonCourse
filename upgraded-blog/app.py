@@ -1,5 +1,12 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import requests
+import smtplib
+
+
+EMAIL_SMTP = "smtp.gmail.com"
+EMAIL = "paulborota9@gmail.com"
+PASSWORD = "hentaI#42"
+
 
 app = Flask(__name__)
 
@@ -9,9 +16,28 @@ data = response.json()
 imgs = ['cactus.jpg', 'clock.jpg', 'bread.jpg']
 
 
-@app.route('/contact')
+def send_email(name, email, phone, message):
+    with smtplib.SMTP(EMAIL_SMTP) as connection:
+        connection.starttls()
+        connection.login(user=EMAIL, password=PASSWORD)
+        connection.sendmail(from_addr=EMAIL,
+                            to_addrs=EMAIL,
+                            msg=f"Subject:CONTACT FORM\n\n"
+                                f"Name: {name}\n"
+                                f"Email: {email}\n"
+                                f"Phone: {phone}\n"
+                                f"Message: {message}\n")
+
+
+@app.route('/contact', methods=["GET", "POST"])
 def contact():
-    return render_template("contact.html")
+    msg_sent = False
+
+    if request.method == "POST":
+        send_email(request.form["name"], request.form["email"], request.form["phone"], request.form["message"])
+        msg_sent = True
+
+    return render_template("contact.html", msg_sent=msg_sent)
 
 
 @app.route('/post/<int:post_id>')
@@ -41,4 +67,4 @@ def home():  # put application's code here
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
