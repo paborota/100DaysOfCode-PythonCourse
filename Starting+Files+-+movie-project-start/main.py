@@ -19,7 +19,7 @@ class Movie(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(50), unique=True, nullable=False)
     year = db.Column(db.Integer, nullable=False)
-    description = db.Column(db.String(500), unique=True, nullable=False)
+    description = db.Column(db.String(900), unique=True, nullable=False)
     rating = db.Column(db.Float, nullable=False)
     ranking = db.Column(db.Integer, nullable=False)
     review = db.Column(db.String(800), nullable=False)
@@ -29,14 +29,37 @@ class Movie(db.Model):
         return f'<Movie {self.title}>'
 
 
+class MovieDBInterface():
+
+    API_KEY = "dad2dfd78877900ed13e607c0a3731d5"
+    DB_URL = "https://api.themoviedb.org/3/"
+
+    def query_movie_name(self, movie_name):
+
+        url = self.DB_URL + "search/movie/"
+        # response = requests.get(self.DB_URL, params=params, headers=headers)
+        response = requests.get(url, params={'api_key': self.API_KEY, 'query': movie_name})
+
+        return response.json()['results']
+
+    def find_movie(self, movie_id):
+
+        url = self.DB_URL + f"movie/{movie_id}"
+        response = requests.get(url, params={'api_key': self.API_KEY})
+
+        return response.json()
+
+
+class RatingForm(FlaskForm):
+
+    rating = DecimalField(u'Your Rating out of 10 e.g. 7.5')
+    review = StringField(u'Your Review')
+    submit_button = SubmitField(u'Submit')
+
 class AddForm(FlaskForm):
 
     title = StringField(u'Movie Title')
-    year = DecimalField(u'Year Released')
-    description = StringField(u'Movie Decription')
-    rating = DecimalField(u'Your Rating')
-    review = StringField(u'Your Review')
-    img_url = StringField(u'Link to Image')
+    submit_button = SubmitField(u'Submit')
 
 
 class EditForm(FlaskForm):
@@ -46,41 +69,54 @@ class EditForm(FlaskForm):
     submit_button = SubmitField(u'Save')
 
 
+@app.route("/add_movie/<movie_id>")
+def add_movie(movie_id):
+
+    movie_interface = MovieDBInterface()
+    movie_data = movie_interface.find_movie(movie_id)
+
+    movie_to_add = Movie(
+        title=movie_data['original_title'],
+        year=movie_data['release_date'].split('-')[0],
+        description=movie_data['overview'],
+        rating=0,
+        review='',
+        img_url="https://image.tmdb.org/t/p/w500" + movie_data['backdrop_path']
+    )
+
+    form = RatingForm(request.form)
+    return render_template('add.html', page_type='form', form=form, movie_data=movie_data)
+
+
 @app.route("/add", methods=['GET', 'POST'])
 def add():
-    form = AddForm(request.form)
-    if request.method == 'POST':
-        movie_to_add = Movie(
-            title = request.form.get('title'),
-            year = request.form.get('year'),
-            description = request.form.get('description'),
-            rating = request.form.get('rating'),
-            review = request.form.get('review'),
-            img_url = request.form.get('img_url')
-        )
-        db.session.add(movie_to_add)
-        db.session.commit()
-        return redirect(f"/{}")
 
-    return render_template("add.html", form=form)
+    form = AddForm(request.form)
+    if request.method == 'POST' and form.validate():
+        movie_interface = MovieDBInterface()
+        movies = movie_interface.query_movie_name(request.form.get('title'))
+
+        return render_template("add.html", page_type='list', movies=movies)
+
+    return render_template("add.html", page_type='form', form=form)
 
 
 @app.route("/delete")
 def delete():
-    global current_movie_id
+    global current_movie_ranking
 
-    movie_to_delete = Movie.query.get(current_movie_id)
+    movie_to_delete = Movie.query.filter_by(ranking=current_movie_ranking).first()
     db.session.delete(movie_to_delete)
     db.session.commit()
-    return redirect(f"/{current_movie_id}")
+    return redirect(f"/{current_movie_ranking}")
 
 
 @app.route("/edit", methods=['GET', 'POST'])
 def edit():
-    global current_movie_id
+    global current_movie_ranking
 
     form = EditForm(request.form)
-    current_movie = Movie.query.get(current_movie_id)
+    current_movie = Movie.query.filter_by(rankint=current_movie_ranking).first()
     if request.method == 'POST' and form.validate():
         current_movie.rating = request.form.get('rating')
         current_movie.review = request.form.get('review')
@@ -90,22 +126,25 @@ def edit():
     return render_template("edit.html", movie=current_movie, form=form)
 
 
-@app.route("/<movie_id>")
-def movie(movie_id: int):
-    global current_movie_id
+@app.route("/<movie_ranking>")
+def movie(movie_ranking: int):
+    global current_movie_ranking
 
-    current_movie = Movie.query.filter_by(id=movie_id).first()
-    if type(current_movie) == 'NoneType':
-        return redirect("/add")
-    current_movie_id = current_movie.id
+    current_movie = Movie.query.filter_by(ranking=movie_ranking).first()
+    if current_movie is None:
+        current_movie = ''
+        current_movie_ranking = 1
+    else:
+        current_movie_ranking = current_movie.ranking
     return render_template("index.html", movie=current_movie)
 
 
 @app.route("/")
 def home():
-    return redirect("/1")
+
+    return redirect("/10")
 
 
 if __name__ == '__main__':
-    current_movie_id = ''
+    current_movie_ranking = ''
     app.run(debug=True)
