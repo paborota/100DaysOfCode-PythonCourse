@@ -1,13 +1,12 @@
 from flask import Flask, render_template, redirect, url_for, request
 from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
-from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, DecimalField, validators
-from wtforms.validators import DataRequired
-import requests
+from movie_interface import MovieDBInterface
+from forms import AddForm, EditForm
+
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+app.config['SECRET_KEY'] = ''
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///movie-rating-collection.db"
 db = SQLAlchemy(app)
@@ -17,134 +16,130 @@ Bootstrap(app)
 class Movie(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(50), unique=True, nullable=False)
+    title = db.Column(db.String(50), unique=False, nullable=False)
     year = db.Column(db.Integer, nullable=False)
-    description = db.Column(db.String(900), unique=True, nullable=False)
+    description = db.Column(db.String(), unique=False, nullable=False)
     rating = db.Column(db.Float, nullable=False)
     ranking = db.Column(db.Integer, nullable=False)
     review = db.Column(db.String(800), nullable=False)
-    img_url = db.Column(db.String(80), unique=True, nullable=False)
+    img_url = db.Column(db.String(80), unique=False, nullable=False)
 
     def __repr__(self):
         return f'<Movie {self.title}>'
 
 
-class MovieDBInterface():
+def reevaluate_rankings():
 
-    API_KEY = "dad2dfd78877900ed13e607c0a3731d5"
-    DB_URL = "https://api.themoviedb.org/3/"
+    movies = Movie.query.order_by('rating').all()
+    i = 1
+    for movie in movies[::-1]:
 
-    def query_movie_name(self, movie_name):
+        movie.ranking = i
+        i += 1
 
-        url = self.DB_URL + "search/movie/"
-        # response = requests.get(self.DB_URL, params=params, headers=headers)
-        response = requests.get(url, params={'api_key': self.API_KEY, 'query': movie_name})
-
-        return response.json()['results']
-
-    def find_movie(self, movie_id):
-
-        url = self.DB_URL + f"movie/{movie_id}"
-        response = requests.get(url, params={'api_key': self.API_KEY})
-
-        return response.json()
+    db.session.commit()
 
 
-class RatingForm(FlaskForm):
-
-    rating = DecimalField(u'Your Rating out of 10 e.g. 7.5')
-    review = StringField(u'Your Review')
-    submit_button = SubmitField(u'Submit')
-
-class AddForm(FlaskForm):
-
-    title = StringField(u'Movie Title')
-    submit_button = SubmitField(u'Submit')
-
-
-class EditForm(FlaskForm):
-
-    rating = DecimalField(u'Your Rating out of 10 e.g. 7.5', places=1, validators=[validators.number_range(min=0.0, max=10.0)])
-    review = StringField(u'Your Review')
-    submit_button = SubmitField(u'Save')
-
-
-@app.route("/add_movie/<movie_id>")
+@app.route("/add_movie/<movie_id>", methods=['GET', 'POST'])
 def add_movie(movie_id):
 
     movie_interface = MovieDBInterface()
     movie_data = movie_interface.find_movie(movie_id)
+    selected_movie_release_year = movie_data['release_date'].split('-')[0]
+
+    # Check to see if movie already exists in database
+    # First grab the entries that have the same title
+    # Then check the entries if they have the same year
+    # If they have the same year, assume they are the same movie and ignore
+    existing_movies = Movie.query.filter_by(title=movie_data['title']).all()
+    for existing_movie in existing_movies:
+        if existing_movie.year == int(selected_movie_release_year):
+            return redirect(f'/add/{"already exists"}')
+
+    if movie_data['backdrop_path'] is None:
+        img_url = '#'
+    else:
+        img_url = "https://image.tmdb.org/t/p/w500" + movie_data['backdrop_path']
 
     movie_to_add = Movie(
-        title=movie_data['original_title'],
-        year=movie_data['release_date'].split('-')[0],
+        title=movie_data['title'],
+        year=selected_movie_release_year,
         description=movie_data['overview'],
         rating=0,
+        ranking=0,
         review='',
-        img_url="https://image.tmdb.org/t/p/w500" + movie_data['backdrop_path']
+        img_url=img_url
     )
 
-    form = RatingForm(request.form)
-    return render_template('add.html', page_type='form', form=form, movie_data=movie_data)
+    db.session.add(movie_to_add)
+    db.session.commit()
+    db.session.refresh(movie_to_add)
+
+    return redirect(f'/edit/{movie_to_add.id}')
+
+
+@app.route("/select/<movie_title>")
+def select(movie_title):
+
+    movie_interface = MovieDBInterface()
+    movies = movie_interface.query_movie_name(movie_title)
+
+    return render_template('select.html', movies=movies)
 
 
 @app.route("/add", methods=['GET', 'POST'])
-def add():
+@app.route("/add/<message>", methods=['GET', 'POST'])
+def add(message=''):
 
     form = AddForm(request.form)
     if request.method == 'POST' and form.validate():
-        movie_interface = MovieDBInterface()
-        movies = movie_interface.query_movie_name(request.form.get('title'))
+        return redirect(f'/select/{request.form.get("title")}')
 
-        return render_template("add.html", page_type='list', movies=movies)
+    can_add = False
+    # Check to see if we're already at 10 movies.
+    # The list is only up to 10, no more.
+    if db.session.query(Movie).count() < 10:
+        can_add = True
 
-    return render_template("add.html", page_type='form', form=form)
+    return render_template("add.html", form=form, message=message, can_add=can_add)
 
 
-@app.route("/delete")
-def delete():
-    global current_movie_ranking
+@app.route("/delete/<movie_id>")
+def delete(movie_id):
 
-    movie_to_delete = Movie.query.filter_by(ranking=current_movie_ranking).first()
+    movie_to_delete = Movie.query.get(movie_id)
     db.session.delete(movie_to_delete)
     db.session.commit()
-    return redirect(f"/{current_movie_ranking}")
+
+    return redirect("/")
 
 
-@app.route("/edit", methods=['GET', 'POST'])
-def edit():
-    global current_movie_ranking
+@app.route("/edit/<movie_id>", methods=['GET', 'POST'])
+def edit(movie_id):
 
     form = EditForm(request.form)
-    current_movie = Movie.query.filter_by(rankint=current_movie_ranking).first()
+    current_movie = Movie.query.get(movie_id)
+
     if request.method == 'POST' and form.validate():
         current_movie.rating = request.form.get('rating')
         current_movie.review = request.form.get('review')
         db.session.commit()
-        return redirect(f'/{current_movie.id}')
+
+        reevaluate_rankings()
+
+        return redirect('/')
 
     return render_template("edit.html", movie=current_movie, form=form)
-
-
-@app.route("/<movie_ranking>")
-def movie(movie_ranking: int):
-    global current_movie_ranking
-
-    current_movie = Movie.query.filter_by(ranking=movie_ranking).first()
-    if current_movie is None:
-        current_movie = ''
-        current_movie_ranking = 1
-    else:
-        current_movie_ranking = current_movie.ranking
-    return render_template("index.html", movie=current_movie)
 
 
 @app.route("/")
 def home():
 
-    return redirect("/10")
+    movies = Movie.query.order_by('rating').all()
+
+    return render_template("index.html", movies=movies, amount_of_movies=len(movies))
 
 
 if __name__ == '__main__':
-    current_movie_ranking = ''
+
     app.run(debug=True)

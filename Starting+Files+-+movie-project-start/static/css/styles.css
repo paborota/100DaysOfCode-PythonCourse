@@ -141,8 +141,6 @@
  .button {
 	 transform: translateZ(40px);
 	 cursor: pointer;
-	 -webkit-backface-visibility: hidden;
-	 backface-visibility: hidden;
 	 font-weight: bold;
 	 color: #fff;
 	 padding: 0.5em 1em;
@@ -151,7 +149,6 @@
 	 background: linear-gradient(135deg, #1a9be6, #1a57e6);
 	 border: none;
 	 position: relative;
-	 transform-style: preserve-3d;
 	 transition: 300ms ease;
 }
  .button:before {
@@ -212,3 +209,8 @@
  .release_date {
 	 font-weight: normal;
 }
+ .error-message {
+	 padding-top: 5px;
+	 color: #e61a1a;
+	 text-align: center;
+ }

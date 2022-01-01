@@ -13,16 +13,14 @@
 {% block content %}
 <div class="content">
     <h1 class="heading">Add a Movie</h1>
-<div class="movie_titles">
-    {% if page_type == 'form' %}
-        {{ wtf.quick_form(form, novalidate='True') }}
-    {% elif page_type == 'list' %}
-        {% for movie in movies %}
-            <h3>
-                <a href={{ url_for('add_movie', movie_id=movie['id']) }}>{{ movie['original_title'] }}</a>
-            </h3>
-        {% endfor %}
+    {% if can_add %}
+        {{ wtf.quick_form(form, novalidate='False') }}
+    {% else %}
+        <p>There's already 10 in the list!</p><br>
+        <p>Head over to the <a href="{{ url_for('home') }}">home page</a> and delete one to make room!</p>
     {% endif %}
-    </div>
 </div>
+    {% if message == 'already exists' %}
+        <p class="error-message">Movie already exists in list.</p>
+    {% endif %}
 {% endblock %}
