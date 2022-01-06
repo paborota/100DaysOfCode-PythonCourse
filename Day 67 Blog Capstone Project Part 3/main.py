@@ -43,16 +43,47 @@ class CreatePostForm(FlaskForm):
 
 @app.route('/')
 def get_all_posts():
+
+    posts = db.session.query(BlogPost).all()
+
     return render_template("index.html", all_posts=posts)
 
 
 @app.route("/post/<int:index>")
 def show_post(index):
-    requested_post = None
-    for blog_post in posts:
-        if blog_post.id == index:
-            requested_post = blog_post
+
+    requested_post = db.session.query(BlogPost).get(index)
+
     return render_template("post.html", post=requested_post)
+
+
+@app.route("/edit-post/<int:post_id>", methods=['GET', 'POST'])
+def edit_post(post_id):
+
+    post_to_edit = db.session.query(BlogPost).get(post_id)
+
+    if request.method == 'POST':
+
+        post_to_edit.title = request.form.get('title')
+        post_to_edit.subtitle = request.form.get('subtitle')
+        post_to_edit.author = request.form.get('author')
+        post_to_edit.img_url = request.form.get('img_url')
+        post_to_edit.body = request.form.get('body')
+
+        db.session.commit()
+        db.session.refresh(post_to_edit)
+
+        return redirect(f'/post/{post_to_edit.id}')
+
+    form = CreatePostForm(
+        title=post_to_edit.title,
+        subtitle=post_to_edit.subtitle,
+        author=post_to_edit.author,
+        img_url=post_to_edit.img_url,
+        body=post_to_edit.body,
+    )
+
+    return render_template('make-post.html', form_type='Edit', form=form)
 
 
 @app.route("/new-post", methods=['GET', 'POST'])
@@ -77,19 +108,32 @@ def create_new_post():
 
         return redirect(f"/post/{new_post.id}")
 
-    return render_template("make-post.html", form=form)
+    return render_template("make-post.html", form_type='New', form=form)
+
+
+@app.route("/delete-post/<int:post_id>", methods=['GET'])
+def delete_post(post_id):
+
+    post_to_delete = db.session.query(BlogPost).get(post_id)
+
+    db.session.delete(post_to_delete)
+    db.session.commit()
+
+    return redirect('/')
 
 
 @app.route("/about")
 def about():
+
     return render_template("about.html")
 
 
 @app.route("/contact")
 def contact():
+
     return render_template("contact.html")
 
 
 if __name__ == "__main__":
-    posts = db.session.query(BlogPost).all()
+
     app.run(debug=True)
