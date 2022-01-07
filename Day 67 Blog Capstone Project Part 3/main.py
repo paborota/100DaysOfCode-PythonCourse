@@ -22,6 +22,7 @@ db = SQLAlchemy(app)
 
 # #CONFIGURE TABLE
 class BlogPost(db.Model):
+
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(250), unique=True, nullable=False)
     subtitle = db.Column(db.String(250), nullable=False)
@@ -33,6 +34,7 @@ class BlogPost(db.Model):
 
 # #WTForm
 class CreatePostForm(FlaskForm):
+
     title = StringField("Blog Post Title", validators=[DataRequired()])
     subtitle = StringField("Subtitle", validators=[DataRequired()])
     author = StringField("Your Name", validators=[DataRequired()])
@@ -43,15 +45,20 @@ class CreatePostForm(FlaskForm):
 
 @app.route('/')
 def get_all_posts():
+
     return render_template("index.html", all_posts=posts)
 
 
 @app.route("/post/<int:index>")
 def show_post(index):
+
     requested_post = None
     for blog_post in posts:
+
         if blog_post.id == index:
+
             requested_post = blog_post
+
     return render_template("post.html", post=requested_post)
 
 
@@ -82,14 +89,17 @@ def create_new_post():
 
 @app.route("/about")
 def about():
+
     return render_template("about.html")
 
 
 @app.route("/contact")
 def contact():
+
     return render_template("contact.html")
 
 
 if __name__ == "__main__":
+
     posts = db.session.query(BlogPost).all()
     app.run(debug=True)
