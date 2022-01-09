@@ -1,4 +1,3 @@
-import flask
 from flask import Flask, flash, render_template, request, url_for, redirect, flash, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
@@ -26,11 +25,7 @@ class User(UserMixin, db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.query(User).get(user_id)
-
-
-# Line below only required once, when creating DB.
-# db.create_all()
+    return db.session.query(User).get(int(user_id))
 
 
 def verify_user_logged_in():
@@ -40,7 +35,7 @@ def verify_user_logged_in():
 @app.route('/')
 def home():
 
-    if current_user.is_authenticated:
+    if verify_user_logged_in():
         return redirect(url_for('secrets'))
 
     return render_template("index.html")
@@ -49,7 +44,18 @@ def home():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
 
+    if verify_user_logged_in():
+        # flash('Log out to create a new account.')
+        return redirect(url_for('home'))
+
     if request.method == 'POST':
+
+        # Check if email already exists for an account.
+        if check_for_existing_email(request.form.get('email')):
+            flash('This email is already in use.')
+            return redirect(url_for('register'))
+
+        # Account does not exist, create it.
 
         hashed_password = generate_password_hash(
             password=request.form.get('password'),
@@ -65,16 +71,29 @@ def register():
 
         db.session.add(new_user)
         db.session.commit()
+        db.session.refresh(new_user)
 
-        flash('Account created.')
+        # flash('Account created.')
 
-        return redirect(url_for('login'))
+        login_user(new_user)
+
+        return redirect(url_for('home'))
 
     return render_template("register.html")
 
 
+def check_for_existing_email(email):
+
+    existing_user = db.session.query(User).filter_by(email=email).first()
+    return existing_user is not None
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+
+    if verify_user_logged_in():
+        # flash('Already logged in.')
+        return redirect(url_for('home'))
 
     if request.method == 'POST':
 
