@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship
 from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
-from forms import CreatePostForm
+from forms import CreatePostForm, RegisterNewUserForm, LoginForm
 from flask_gravatar import Gravatar
 
 app = Flask(__name__)
@@ -18,6 +18,27 @@ Bootstrap(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+##Setup Flask Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = "user_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(100), unique=True)
+    password = db.Column(db.String(100))
+    name = db.Column(db.String(100))
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.query(User).get(int(user_id))
+
+
+def is_logged_in():
+    return current_user.is_authenticated
 
 
 ##CONFIGURE TABLES
@@ -31,50 +52,74 @@ class BlogPost(db.Model):
     date = db.Column(db.String(250), nullable=False)
     body = db.Column(db.Text, nullable=False)
     img_url = db.Column(db.String(250), nullable=False)
-db.create_all()
 
 
 @app.route('/')
 def get_all_posts():
-    posts = BlogPost.query.all()
+
+    posts = db.session.query(BlogPost).all()
+
     return render_template("index.html", all_posts=posts)
 
 
 @app.route('/register')
 def register():
-    return render_template("register.html")
+
+    form = RegisterNewUserForm()
+    if form.validate_on_submit():
+        # @TODO add new user register logic
+        pass
+
+    return render_template("register.html", form=form)
 
 
 @app.route('/login')
 def login():
-    return render_template("login.html")
+
+    form = LoginForm()
+    if form.validate_on_submit():
+        # @TODO add logging in logic
+        pass
+
+    return render_template("login.html", form=form)
 
 
 @app.route('/logout')
 def logout():
+    if is_logged_in():
+        return redirect(url_for('get_all_posts'))
+
+    # @TODO add the rest of the logging out logic before going to main screen
+
     return redirect(url_for('get_all_posts'))
 
 
 @app.route("/post/<int:post_id>")
 def show_post(post_id):
-    requested_post = BlogPost.query.get(post_id)
+
+    requested_post = db.session.query(BlogPost).get(post_id)
+
     return render_template("post.html", post=requested_post)
 
 
 @app.route("/about")
 def about():
+
     return render_template("about.html")
 
 
 @app.route("/contact")
 def contact():
+
     return render_template("contact.html")
 
 
 @app.route("/new-post")
 def add_new_post():
+
     form = CreatePostForm()
     if form.validate_on_submit():
+
         new_post = BlogPost(
             title=form.title.data,
             subtitle=form.subtitle.data,
@@ -83,15 +128,19 @@ def add_new_post():
             author=current_user,
             date=date.today().strftime("%B %d, %Y")
         )
+
         db.session.add(new_post)
         db.session.commit()
+
         return redirect(url_for("get_all_posts"))
+
     return render_template("make-post.html", form=form)
 
 
 @app.route("/edit-post/<int:post_id>")
 def edit_post(post_id):
-    post = BlogPost.query.get(post_id)
+
+    post = db.session.query(BlogPost).get(post_id)
     edit_form = CreatePostForm(
         title=post.title,
         subtitle=post.subtitle,
@@ -100,12 +149,15 @@ def edit_post(post_id):
         body=post.body
     )
     if edit_form.validate_on_submit():
+
         post.title = edit_form.title.data
         post.subtitle = edit_form.subtitle.data
         post.img_url = edit_form.img_url.data
         post.author = edit_form.author.data
         post.body = edit_form.body.data
+
         db.session.commit()
+
         return redirect(url_for("show_post", post_id=post.id))
 
     return render_template("make-post.html", form=edit_form)
@@ -113,11 +165,13 @@ def edit_post(post_id):
 
 @app.route("/delete/<int:post_id>")
 def delete_post(post_id):
-    post_to_delete = BlogPost.query.get(post_id)
+
+    post_to_delete = db.session.query(BlogPost).get(post_id)
     db.session.delete(post_to_delete)
     db.session.commit()
+
     return redirect(url_for('get_all_posts'))
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True)
