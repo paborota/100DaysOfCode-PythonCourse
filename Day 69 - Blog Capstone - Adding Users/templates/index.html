@@ -32,9 +32,10 @@
           <p class="post-meta">Posted by
             <a href="#">{{post.author}}</a>
             on {{post.date}}
-          
+
+              {% if current_user.email == post.author_account %}
             <a href="{{url_for('delete_post', post_id=post.id) }}">✘</a>
-          
+              {% endif %}
           </p>
         </div>
         <hr>
