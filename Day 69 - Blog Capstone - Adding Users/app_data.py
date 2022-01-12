@@ -3,6 +3,7 @@ from flask_bootstrap import Bootstrap
 from flask_ckeditor import CKEditor
 from flask_login import UserMixin, LoginManager
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -26,8 +27,8 @@ login_manager.login_view = 'login'
 class BlogPost(db.Model):
     __tablename__ = "blog_posts"
     id = db.Column(db.Integer, primary_key=True)
-    author = db.Column(db.String(250), nullable=False)
-    author_account = db.Column(db.String(100), nullable=False)
+    author = relationship("User", back_populates="posts")
+    author_id = db.Column(db.Integer, db.ForeignKey('user_accounts.id'))
     title = db.Column(db.String(250), unique=True, nullable=False)
     subtitle = db.Column(db.String(250), nullable=False)
     date = db.Column(db.String(250), nullable=False)
@@ -41,6 +42,8 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(100), unique=True)
     password = db.Column(db.String(100))
     name = db.Column(db.String(100))
+
+    posts = relationship("BlogPost", back_populates='author')
 
     def set_password(self, password):
         self.password = generate_password_hash(password, method="pbkdf2:sha256", salt_length=8)

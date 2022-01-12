@@ -1,11 +1,11 @@
 from app_data import app, User, BlogPost, db
-from app_helper_functions import is_logged_in, login_failed, check_for_existing_user, check_permissions, get_next_page
+from app_helper_functions import is_logged_in, login_failed, check_for_existing_user, check_permissions, get_next_page, admin_only
 from datetime import date
-from flask import render_template, redirect, flash, url_for
+from flask import render_template, redirect, flash, url_for, request, session
 from flask_login import login_user, login_required, current_user, logout_user
 from forms import CreatePostForm, RegisterNewUserForm, LoginForm
 
-from sqlalchemy.orm import relationship
+
 from flask_gravatar import Gravatar
 
 
@@ -27,22 +27,24 @@ def register():
     form = RegisterNewUserForm()
     if form.validate_on_submit():
 
-        if not check_for_existing_user(db=db, user_class=User, email=form.email.data):
-            new_user = User(
-                email=form.email.data,
-                name=form.name.data
-            )
-            new_user.set_password(form.password.data)
-
-            db.session.add(new_user)
-            db.session.commit()
-            db.session.refresh(new_user)
-
-            login_user(new_user)
-
-            return redirect(get_next_page())
-        else:
+        if check_for_existing_user(db=db, user_class=User, email=form.email.data):
             flash('This email is already in use.')
+            session['login_email'] = form.email.data
+            return redirect(url_for('login'))
+
+        new_user = User(
+            email=form.email.data,
+            name=form.name.data
+        )
+        new_user.set_password(form.password.data)
+
+        db.session.add(new_user)
+        db.session.commit()
+        db.session.refresh(new_user)
+
+        login_user(new_user)
+
+        return redirect(get_next_page())
 
     return render_template("register.html", form=form)
 
@@ -51,6 +53,7 @@ def register():
 def login():
 
     form = LoginForm()
+
     if form.validate_on_submit():
 
         user = db.session.query(User).filter_by(email=form.email.data).first()
@@ -58,12 +61,17 @@ def login():
 
             if user.check_password(form.password.data):
                 login_user(user)
-
                 return redirect(get_next_page())
             else:
                 login_failed()
         else:
             login_failed()
+
+    # This functionality stems from someone attempting to register an email that's already in use.
+    # Uses session to pass the email to the login page.
+    if 'login_email' in session:
+        form.email.data = session['login_email']
+        session.pop('login_email', None)
 
     return render_template("login.html", form=form)
 
@@ -74,11 +82,11 @@ def logout():
     # If we're not logged in, redirect to main page.
     # Wouldn't make sense to logout when already logged out.
     if not is_logged_in():
-        return redirect(url_for('get_all_posts'))
+        return redirect(get_next_page())
 
     logout_user()
 
-    return redirect(url_for('get_all_posts'))
+    return redirect(get_next_page())
 
 
 @app.route("/post/<int:post_id>")
@@ -103,6 +111,7 @@ def contact():
 
 @app.route("/new-post", methods=['GET', 'POST'])
 @login_required
+@admin_only
 def add_new_post():
 
     form = CreatePostForm()
@@ -114,7 +123,7 @@ def add_new_post():
             body=form.body.data,
             img_url=form.img_url.data,
             author=current_user.name,
-            author_account=current_user.email,
+            author_id=current_user.id,
             date=date.today().strftime("%B %d, %Y")
         )
 
@@ -128,6 +137,7 @@ def add_new_post():
 
 @app.route("/edit-post/<int:post_id>")
 @login_required
+@admin_only
 def edit_post(post_id):
 
     post = db.session.query(BlogPost).get(post_id)
@@ -160,6 +170,7 @@ def edit_post(post_id):
 
 @app.route("/delete/<int:post_id>")
 @login_required
+@admin_only
 def delete_post(post_id):
 
     post_to_delete = db.session.query(BlogPost).get(post_id)

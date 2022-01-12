@@ -1,3 +1,6 @@
+import flask
+from functools import wraps
+
 from app_data import User
 from flask import flash, request, url_for
 from flask_login import current_user
@@ -30,3 +33,14 @@ def get_next_page():
 
 def is_logged_in():
     return current_user.is_authenticated
+
+
+def admin_only(func):
+    @wraps(func)
+    def check_if_user_is_admin(*args, **kwargs):
+        if current_user.id == 1:
+            return func(args, kwargs)
+        else:
+            # flash('You cannot access that')
+            flask.abort(403)
+    return check_if_user_is_admin
