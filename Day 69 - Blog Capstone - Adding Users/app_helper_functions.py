@@ -1,7 +1,7 @@
 import flask
 from functools import wraps
 
-from app_data import User
+from app_data import User, db
 from flask import flash, request, url_for
 from flask_login import current_user
 from werkzeug.urls import url_parse
@@ -17,10 +17,6 @@ def check_for_existing_user(db, user_class, email):
     """
     user = db.session.query(User).filter_by(email=email).first()
     return user is not None
-
-
-def check_permissions(post):
-    return current_user.email == post.author_account
 
 
 def get_next_page():
@@ -44,3 +40,9 @@ def admin_only(func):
             # flash('You cannot access that')
             flask.abort(403)
     return check_if_user_is_admin
+
+
+def delete_item(item):
+
+    db.session.delete(item)
+    db.session.commit()

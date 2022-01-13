@@ -1,12 +1,9 @@
-from app_data import app, User, BlogPost, db
-from app_helper_functions import is_logged_in, login_failed, check_for_existing_user, check_permissions, get_next_page, admin_only
+from app_data import app, User, BlogPost, Comment, db
+from app_helper_functions import is_logged_in, login_failed, check_for_existing_user, get_next_page, admin_only, delete_item
 from datetime import date
-from flask import render_template, redirect, flash, url_for, request, session
+from flask import render_template, redirect, flash, url_for, session
 from flask_login import login_user, login_required, current_user, logout_user
-from forms import CreatePostForm, RegisterNewUserForm, LoginForm
-
-
-from flask_gravatar import Gravatar
+from forms import CreatePostForm, RegisterNewUserForm, LoginForm, CommentForm
 
 
 @app.route('/')
@@ -89,12 +86,27 @@ def logout():
     return redirect(get_next_page())
 
 
-@app.route("/post/<int:post_id>")
+@app.route("/post/<int:post_id>", methods=['GET', 'POST'])
 def show_post(post_id):
+
+    form = CommentForm()
+
+    if form.validate_on_submit() and is_logged_in():
+
+        new_comment = Comment(
+            text=form.comment.data,
+            author_id=current_user.id,
+            post_id=post_id
+        )
+
+        db.session.add(new_comment)
+        db.session.commit()
+
+        return redirect(url_for('show_post', post_id=post_id))
 
     requested_post = db.session.query(BlogPost).get(post_id)
 
-    return render_template("post.html", post=requested_post)
+    return render_template("post.html", post=requested_post, form=form)
 
 
 @app.route("/about")
@@ -112,7 +124,7 @@ def contact():
 @app.route("/new-post", methods=['GET', 'POST'])
 @login_required
 @admin_only
-def add_new_post():
+def add_new_post(*args, **kwargs):
 
     form = CreatePostForm()
     if form.validate_on_submit():
@@ -122,7 +134,6 @@ def add_new_post():
             subtitle=form.subtitle.data,
             body=form.body.data,
             img_url=form.img_url.data,
-            author=current_user.name,
             author_id=current_user.id,
             date=date.today().strftime("%B %d, %Y")
         )
@@ -138,13 +149,9 @@ def add_new_post():
 @app.route("/edit-post/<int:post_id>")
 @login_required
 @admin_only
-def edit_post(post_id):
+def edit_post(*args, **kwargs):
 
-    post = db.session.query(BlogPost).get(post_id)
-
-    if not check_permissions(post):
-        # flash('You do not have permissions to edit this post.')
-        return redirect(url_for('get_all_posts'))
+    post = db.session.query(BlogPost).get(args[1]['post_id'])
 
     edit_form = CreatePostForm(
         title=post.title,
@@ -171,15 +178,21 @@ def edit_post(post_id):
 @app.route("/delete/<int:post_id>")
 @login_required
 @admin_only
-def delete_post(post_id):
+def delete_post(*args, **kwargs):
 
-    post_to_delete = db.session.query(BlogPost).get(post_id)
-
-    if check_permissions(post_to_delete):
-        db.session.delete(post_to_delete)
-        db.session.commit()
-    # else:
-    #     This user lacks permissions to delete the post.
-    #     flash('You cannot perform this action.')
+    post = db.session.query(BlogPost).get(args[1]['post_id'])
+    if current_user.id == 1 or post.author.id == current_user.id:
+        delete_item(post)
 
     return redirect(url_for('get_all_posts'))
+
+
+@app.route("/delete-comment/<int:post_id>/<int:comment_id>")
+@login_required
+def delete_comment(post_id, comment_id):
+
+    comment = db.session.query(Comment).get(comment_id)
+    if current_user.id == 1 or comment.author.id == current_user.id:
+        delete_item(comment)
+
+    return redirect(url_for('show_post', post_id=post_id))

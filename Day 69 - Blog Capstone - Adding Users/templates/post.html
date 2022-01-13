@@ -1,4 +1,5 @@
 {% include "header.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
 
   <!-- Page Header -->
   <header class="masthead" style="background-image: url('{{post.img_url}}')">
@@ -32,20 +33,25 @@
             </div>
             {% endif %}
 
-
+            {{ wtf.quick_form(form, novalidate=True, button_map={"submit": "primary"}) }}
 
 <!--           Comments Area -->
           <div class="col-lg-8 col-md-10 mx-auto comment">
               <ul class="commentList">
+                  {% for comment in post.comments %}
                 <li>
                     <div class="commenterImage">
-                      <img src="https://pbs.twimg.com/profile_images/744849215675838464/IH0FNIXk.jpg"/>
+                      <img src="{{ comment.author.email | gravatar(size=400) }}" alt='profile decorator'>
                     </div>
                     <div class="commentText">
-                      <p>Some comment</p>
-                      <span class="date sub-text">comment author name</span>
+                      <p>{{ comment.text }}</p>
+                      <span class="date sub-text">{{ comment.author.name }}</span>
+                        {% if current_user.id == 1 or current_user.id == comment.author.id %}
+                        <a href="{{url_for('delete_comment', post_id=post.id, comment_id=comment.id) }}">✘</a>
+                        {% endif %}
                     </div>
                 </li>
+                  {% endfor %}
               </ul>
             </div>
 
